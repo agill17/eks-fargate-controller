@@ -10,7 +10,11 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.1.0"
 
-envVars: []
+envVars:
+  - name: AWS_ACCESS_KEY_ID
+    value: <YOUR-AWS-ACCESS-KEY-ID>
+  - name: AWS_SECRET_ACCESS_KEY
+    value: <YOUR-AWS-SECRET-ACCESS-KEY>
 
 imagePullSecrets: []
 nameOverride: ""

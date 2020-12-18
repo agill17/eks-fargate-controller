@@ -83,6 +83,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// ensure specified eks cluster exists
+	r.Log.Info(fmt.Sprintf("%v: checking if eks-cluster exists", req.NamespacedName.String()))
 	eksClusterState, err := eksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(cr.Spec.ClusterName)})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
@@ -95,6 +96,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// eks cluster is in available state -- TODO: is this necessary or can I narrow down this check more?
+	r.Log.Info(fmt.Sprintf("%v: checking if eks-cluster is in available state", req.NamespacedName.String()))
 	if *eksClusterState.Cluster.Status != eks.ClusterStatusActive {
 		r.Log.Info(fmt.Sprintf("%v eks cluster is in %v state, waiting to become active first", cr.Spec.ClusterName, *eksClusterState.Cluster.Status))
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
@@ -126,11 +128,13 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 				}))
 			}
 			createInput.SetSelectors(selectors)
+			r.Log.Info(fmt.Sprintf("%v: creating profile", req.NamespacedName.String()))
 
 			if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(createInput); err != nil {
 				r.Log.Error(errCreatingFargateProfile, "Failed to create fargate profile")
 				return ctrl.Result{}, errCreatingFargateProfile
 			}
+			r.Log.Info(fmt.Sprintf("%v: Successfully created profile", req.NamespacedName.String()))
 		}
 	}
 
