@@ -5,7 +5,7 @@ metadata:
   name: fargateprofile-editor-role
 rules:
 - apiGroups:
-  - agill.apps.agill.apps.eks-fargate-controller
+  - agill.apps.eks-fargate-controller
   resources:
   - fargateprofiles
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - agill.apps.agill.apps.eks-fargate-controller
+  - agill.apps.eks-fargate-controller
   resources:
   - fargateprofiles/status
   verbs:

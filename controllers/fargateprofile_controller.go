@@ -40,8 +40,8 @@ type FargateProfileReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=agill.apps.agill.apps.eks-fargate-controller,resources=fargateprofiles,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=agill.apps.agill.apps.eks-fargate-controller,resources=fargateprofiles/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=agill.apps.eks-fargate-controller,resources=fargateprofiles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=agill.apps.eks-fargate-controller,resources=fargateprofiles/status,verbs=get;update;patch
 
 func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()

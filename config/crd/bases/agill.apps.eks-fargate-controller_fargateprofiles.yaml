@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.0
   creationTimestamp: null
-  name: fargateprofiles.agill.apps.agill.apps.eks-fargate-controller
+  name: fargateprofiles.agill.apps.eks-fargate-controller
 spec:
-  group: agill.apps.agill.apps.eks-fargate-controller
+  group: agill.apps.eks-fargate-controller
   names:
     kind: FargateProfile
     listKind: FargateProfileList

@@ -5,7 +5,7 @@ metadata:
   name: fargateprofile-viewer-role
 rules:
 - apiGroups:
-  - agill.apps.agill.apps.eks-fargate-controller
+  - agill.apps.eks-fargate-controller
   resources:
   - fargateprofiles
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - agill.apps.agill.apps.eks-fargate-controller
+  - agill.apps.eks-fargate-controller
   resources:
   - fargateprofiles/status
   verbs:
