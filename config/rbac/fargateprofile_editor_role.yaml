@@ -1,0 +1,24 @@
+# permissions for end users to edit fargateprofiles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fargateprofile-editor-role
+rules:
+- apiGroups:
+  - agill.apps.agill.apps.eks-fargate-controller
+  resources:
+  - fargateprofiles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agill.apps.agill.apps.eks-fargate-controller
+  resources:
+  - fargateprofiles/status
+  verbs:
+  - get

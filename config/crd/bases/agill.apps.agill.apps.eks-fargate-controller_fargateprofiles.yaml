@@ -1,0 +1,74 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.0
+  creationTimestamp: null
+  name: fargateprofiles.agill.apps.agill.apps.eks-fargate-controller
+spec:
+  group: agill.apps.agill.apps.eks-fargate-controller
+  names:
+    kind: FargateProfile
+    listKind: FargateProfileList
+    plural: fargateprofiles
+    singular: fargateprofile
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: FargateProfile is the Schema for the fargateprofiles API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: FargateProfileSpec defines the desired state of FargateProfile
+            properties:
+              clusterName:
+                description: The name of the Amazon EKS cluster to apply the Fargate profile to. ClusterName is a required field
+                type: string
+              podExecutionRoleArn:
+                description: The Amazon Resource Name (ARN) of the pod execution role to use for pods that match the selectors in the Fargate profile. The pod execution role allows Fargate infrastructure to register with your cluster as a node, and it provides read access to Amazon ECR image repositories. For more information, see Pod Execution Role (https://docs.aws.amazon.com/eks/latest/userguide/pod-execution-role.html) in the Amazon EKS User Guide. PodExecutionRoleArn is a required field
+                type: string
+              podSelectors:
+                additionalProperties:
+                  type: string
+                type: object
+              region:
+                type: string
+              subnets:
+                description: 'The IDs of subnets to launch your pods into. At this time, pods running on Fargate are not assigned public IP addresses, so only private subnets (with no direct route to an Internet Gateway) are accepted for this parameter. TODO: add validation in each reconcile to make sure subnets provided are private'
+                items:
+                  type: string
+                type: array
+              tags:
+                additionalProperties:
+                  type: string
+                description: The metadata to apply to the Fargate profile to assist with categorization and organization. Each tag consists of a key and an optional value, both of which you define. Fargate profile tags do not propagate to any other resources associated with the Fargate profile, such as the pods that are scheduled with it.
+                type: object
+            required:
+            - clusterName
+            - podExecutionRoleArn
+            - region
+            - subnets
+            type: object
+          status:
+            description: FargateProfileStatus defines the observed state of FargateProfile
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

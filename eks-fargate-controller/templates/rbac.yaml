@@ -1,0 +1,64 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "eks-fargate-controller.fullname" . }}
+rules:
+- apiGroups:
+    - agill.apps.eks-fargate-controller
+  resources:
+    - fargateprofiles
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
+    - agill.apps.eks-fargate-controller
+  resources:
+    - fargateprofiles/status
+  verbs:
+    - get
+    - patch
+    - update
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+- apiGroups:
+    - ""
+  resources:
+    - configmaps/status
+  verbs:
+    - get
+    - update
+    - patch
+- apiGroups:
+    - ""
+  resources:
+    - events
+  verbs:
+    - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "eks-fargate-controller.fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "eks-fargate-controller.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "eks-fargate-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
