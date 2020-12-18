@@ -20,8 +20,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type Phase string
+
+const (
+	Ready    Phase = "READY"
+	Creating Phase = "CREATING"
+	Deleting Phase = "Deleting"
+)
+
+type FargateProfileSelector struct {
+	// The Kubernetes labels that the selector should match. A pod must contain
+	// all of the labels that are specified in the selector for it to be considered
+	// a match.
+	Labels    map[string]string `json:"labels"`
+	Namespace string            `json:"namespace,required"`
+}
 
 // FargateProfileSpec defines the desired state of FargateProfile
 type FargateProfileSpec struct {
@@ -40,8 +53,10 @@ type FargateProfileSpec struct {
 	// PodExecutionRoleArn is a required field
 	PodExecutionRoleArn string `json:"podExecutionRoleArn,required"`
 
-	// +optional
-	PodSelectors map[string]string `json:"podSelectors"`
+	// An object representing an AWS Fargate profile selector ( can include 5 at max ).
+	// +kubebuilder:validation:MaxItems=5
+	// +kubebuilder:validation:MinItems=1
+	Selectors []FargateProfileSelector `json:"selectors"`
 
 	// The IDs of subnets to launch your pods into. At this time, pods running on
 	// Fargate are not assigned public IP addresses, so only private subnets (with
@@ -57,14 +72,6 @@ type FargateProfileSpec struct {
 	// +optional
 	Tags map[string]string `json:"tags"`
 }
-
-type Phase string
-
-const (
-	Ready    Phase = "READY"
-	Creating Phase = "CREATING"
-	Deleting Phase = "Deleting"
-)
 
 // FargateProfileStatus defines the observed state of FargateProfile
 type FargateProfileStatus struct {

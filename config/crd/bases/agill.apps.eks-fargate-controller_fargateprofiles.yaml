@@ -51,12 +51,26 @@ spec:
               podExecutionRoleArn:
                 description: The Amazon Resource Name (ARN) of the pod execution role to use for pods that match the selectors in the Fargate profile. The pod execution role allows Fargate infrastructure to register with your cluster as a node, and it provides read access to Amazon ECR image repositories. For more information, see Pod Execution Role (https://docs.aws.amazon.com/eks/latest/userguide/pod-execution-role.html) in the Amazon EKS User Guide. PodExecutionRoleArn is a required field
                 type: string
-              podSelectors:
-                additionalProperties:
-                  type: string
-                type: object
               region:
                 type: string
+              selectors:
+                description: An object representing an AWS Fargate profile selector ( can include 5 at max ).
+                items:
+                  properties:
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: The Kubernetes labels that the selector should match. A pod must contain all of the labels that are specified in the selector for it to be considered a match.
+                      type: object
+                    namespace:
+                      type: string
+                  required:
+                  - labels
+                  - namespace
+                  type: object
+                maxItems: 5
+                minItems: 1
+                type: array
               subnets:
                 description: 'The IDs of subnets to launch your pods into. At this time, pods running on Fargate are not assigned public IP addresses, so only private subnets (with no direct route to an Internet Gateway) are accepted for this parameter. TODO: add validation in each reconcile to make sure subnets provided are private'
                 items:
@@ -71,6 +85,7 @@ spec:
             - clusterName
             - podExecutionRoleArn
             - region
+            - selectors
             - subnets
             type: object
           status:

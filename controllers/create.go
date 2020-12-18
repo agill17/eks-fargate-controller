@@ -19,23 +19,23 @@ func createFProfile(cr *v1alpha1.FargateProfile, eksClient eksiface.EKSAPI, clie
 		PodExecutionRoleArn: aws.String(cr.Spec.PodExecutionRoleArn),
 		Subnets:             aws.StringSlice(cr.Spec.Subnets),
 		Tags:                aws.StringMap(cr.Spec.Tags),
+		Selectors:           toEksProfileSelectors(cr),
 	}
-
-	var selectors []*eks.FargateProfileSelector
-
-	if len(cr.Spec.PodSelectors) > 0 {
-		for key, val := range cr.Spec.PodSelectors {
-			selectors = append(selectors, &(eks.FargateProfileSelector{
-				Labels:    aws.StringMap(map[string]string{key: val}),
-				Namespace: aws.String(cr.GetNamespace()),
-			}))
-		}
-	}
-	createInput.SetSelectors(selectors)
 
 	if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(createInput); errCreatingFargateProfile != nil {
 		return errCreatingFargateProfile
 	}
 
 	return updateCrPhase(v1alpha1.Creating, client, cr)
+}
+
+func toEksProfileSelectors(cr *v1alpha1.FargateProfile) []*eks.FargateProfileSelector {
+	var out []*eks.FargateProfileSelector
+	for _, e := range cr.Spec.Selectors {
+		out = append(out, &(eks.FargateProfileSelector{
+			Labels:    aws.StringMap(e.Labels),
+			Namespace: aws.String(e.Namespace),
+		}))
+	}
+	return out
 }
