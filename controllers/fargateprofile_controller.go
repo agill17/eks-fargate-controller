@@ -22,8 +22,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/davecgh/go-spew/spew"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -67,6 +68,12 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	// handle delete
 	if cr.GetDeletionTimestamp() != nil {
+
+		if errUpdatingPhase := UpdateFpCrStatus("DELETING", cr, r.Client); errUpdatingPhase != nil {
+			r.Log.Error(errUpdatingPhase, "Failed to update status.phase to DELETING")
+			return ctrl.Result{}, errUpdatingPhase
+		}
+
 		deleteIn := &eks.DeleteFargateProfileInput{
 			ClusterName:        aws.String(cr.Spec.ClusterName),
 			FargateProfileName: aws.String(cr.GetName()),
@@ -137,6 +144,10 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 				r.Log.Error(errCreatingFargateProfile, "Failed to create fargate profile")
 				return ctrl.Result{}, errCreatingFargateProfile
 			}
+			if errUpdatingPhase := UpdateFpCrStatus("CREATING", cr, r.Client); errUpdatingPhase != nil {
+				r.Log.Error(errUpdatingPhase, "Failed to update status.phase to CREATING")
+				return ctrl.Result{}, errUpdatingPhase
+			}
 			// force requeue to get new state
 			return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 		}
@@ -146,9 +157,13 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	fpStatus := *fpState.FargateProfile.Status
 	if fpStatus != eks.FargateProfileStatusActive {
-		spew.Dump(fpState)
 		r.Log.Info(fmt.Sprintf("%v fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), fpStatus))
 		return ctrl.Result{RequeueAfter: 1 * time.Minute, Requeue: true}, nil
+	}
+
+	if errUpdatingPhase := UpdateFpCrStatus("READY", cr, r.Client); errUpdatingPhase != nil {
+		r.Log.Error(errUpdatingPhase, "Failed to update status.phase to READY")
+		return ctrl.Result{}, errUpdatingPhase
 	}
 
 	return ctrl.Result{}, nil
@@ -157,5 +172,10 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 func (r *FargateProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agillappsv1alpha1.FargateProfile{}).
+		WithEventFilter(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return e.MetaOld.GetGeneration() != e.MetaNew.GetGeneration()
+			},
+		}).
 		Complete(r)
 }

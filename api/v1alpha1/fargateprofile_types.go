@@ -60,13 +60,17 @@ type FargateProfileSpec struct {
 
 // FargateProfileStatus defines the observed state of FargateProfile
 type FargateProfileStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Phase string `json:"status"`
 }
 
 // +kubebuilder:object:root=true
 
 // FargateProfile is the Schema for the fargateprofiles API
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="namespace",type=string,JSONPath=`.metadata.namespace`
+// +kubebuilder:printcolumn:name="pod-selectors",type=string,JSONPath=`.spec.podSelectors`
+// +kubebuilder:printcolumn:name="phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type FargateProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
