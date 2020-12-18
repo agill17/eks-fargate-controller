@@ -68,11 +68,11 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	if cr.GetDeletionTimestamp() != nil {
 		deleteIn := &eks.DeleteFargateProfileInput{
 			ClusterName:        aws.String(cr.Spec.ClusterName),
-			FargateProfileName: aws.String(cr.GetNamespace()),
+			FargateProfileName: aws.String(cr.GetName()),
 		}
 		if _, errDeleting := eksClient.DeleteFargateProfile(deleteIn); errDeleting != nil {
 			if awsErr, ok := errDeleting.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
-				r.Log.Info(fmt.Sprintf("Tried deleting %v but does not exist.. skipping", req.NamespacedName.String()))
+				r.Log.Info(fmt.Sprintf("%v: attempted to delete, but fargate-profile does not exist.. skipping", req.NamespacedName.String()))
 				return ctrl.Result{}, RemoveFinalizer(FargateProfileFinalizer, cr, r.Client)
 			}
 			r.Log.Error(errDeleting, fmt.Sprintf("Could not delete %v fargate profile", req.NamespacedName.String()))
@@ -83,7 +83,6 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// ensure specified eks cluster exists
-	r.Log.Info(fmt.Sprintf("%v: checking if eks-cluster exists", req.NamespacedName.String()))
 	eksClusterState, err := eksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(cr.Spec.ClusterName)})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
@@ -96,7 +95,6 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// eks cluster is in available state -- TODO: is this necessary or can I narrow down this check more?
-	r.Log.Info(fmt.Sprintf("%v: checking if eks-cluster is in available state", req.NamespacedName.String()))
 	if *eksClusterState.Cluster.Status != eks.ClusterStatusActive {
 		r.Log.Info(fmt.Sprintf("%v eks cluster is in %v state, waiting to become active first", cr.Spec.ClusterName, *eksClusterState.Cluster.Status))
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
@@ -120,12 +118,16 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 				Subnets:             aws.StringSlice(cr.Spec.Subnets),
 				Tags:                aws.StringMap(cr.Spec.Tags),
 			}
+
 			var selectors []*eks.FargateProfileSelector
-			for key, val := range cr.Spec.PodSelectors {
-				selectors = append(selectors, &(eks.FargateProfileSelector{
-					Labels:    aws.StringMap(map[string]string{key: val}),
-					Namespace: aws.String(cr.GetNamespace()),
-				}))
+
+			if len(cr.Spec.PodSelectors) > 0 {
+				for key, val := range cr.Spec.PodSelectors {
+					selectors = append(selectors, &(eks.FargateProfileSelector{
+						Labels:    aws.StringMap(map[string]string{key: val}),
+						Namespace: aws.String(cr.GetNamespace()),
+					}))
+				}
 			}
 			createInput.SetSelectors(selectors)
 			r.Log.Info(fmt.Sprintf("%v: creating profile", req.NamespacedName.String()))
