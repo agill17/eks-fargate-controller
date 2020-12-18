@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/davecgh/go-spew/spew"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"time"
 
@@ -101,7 +102,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// create fargate profile if not exists
-	_, errDescribingFp := eksClient.DescribeFargateProfile(&eks.DescribeFargateProfileInput{
+	fpState, errDescribingFp := eksClient.DescribeFargateProfile(&eks.DescribeFargateProfileInput{
 		ClusterName:        aws.String(cr.Spec.ClusterName),
 		FargateProfileName: aws.String(cr.GetName()),
 	})
@@ -136,8 +137,18 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 				r.Log.Error(errCreatingFargateProfile, "Failed to create fargate profile")
 				return ctrl.Result{}, errCreatingFargateProfile
 			}
+			// force requeue to get new state
 			return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 		}
+		r.Log.Error(errDescribingFp, "Failed to describe fargate-profile")
+		return ctrl.Result{}, errDescribingFp
+	}
+
+	fpStatus := *fpState.FargateProfile.Status
+	if fpStatus != eks.FargateProfileStatusActive {
+		spew.Dump(fpState)
+		r.Log.Info(fmt.Sprintf("%v fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), fpStatus))
+		return ctrl.Result{RequeueAfter: 1 * time.Minute, Requeue: true}, nil
 	}
 
 	return ctrl.Result{}, nil
