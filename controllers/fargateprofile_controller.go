@@ -83,15 +83,15 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// ensure specified eks cluster exists
-	eksClusterState, err := eksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(cr.Spec.ClusterName)})
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
+	eksClusterState, errDescribingCluster := eksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(cr.Spec.ClusterName)})
+	if errDescribingCluster != nil {
+		if awsErr, ok := errDescribingCluster.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
 			r.Log.Error(awsErr, fmt.Sprintf("%v eks cluster not found in %v region", cr.Spec.ClusterName, cr.Spec.Region))
 			// delayed retry
 			return ctrl.Result{RequeueAfter: 2 * time.Minute}, awsErr
 		}
-		r.Log.Error(err, "Could not query the state of EKS cluster")
-		return ctrl.Result{}, err
+		r.Log.Error(errDescribingCluster, "Could not query the state of EKS cluster")
+		return ctrl.Result{}, errDescribingCluster
 	}
 
 	// eks cluster is in available state -- TODO: is this necessary or can I narrow down this check more?
@@ -101,12 +101,12 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// create fargate profile if not exists
-	_, err = eksClient.DescribeFargateProfile(&eks.DescribeFargateProfileInput{
+	_, errDescribingFp := eksClient.DescribeFargateProfile(&eks.DescribeFargateProfileInput{
 		ClusterName:        aws.String(cr.Spec.ClusterName),
 		FargateProfileName: aws.String(cr.GetName()),
 	})
-	if err != nil {
-		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
+	if errDescribingFp != nil {
+		if awsErr, isAwsErr := errDescribingFp.(awserr.Error); isAwsErr && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
 
 			//TODO: add check to make sure subnets exists -- would require the creds to have permissions
 			//TODO: add check to make sure roleArn exists -- would require the creds to have permissions
@@ -132,11 +132,11 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			createInput.SetSelectors(selectors)
 			r.Log.Info(fmt.Sprintf("%v: creating profile", req.NamespacedName.String()))
 
-			if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(createInput); err != nil {
+			if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(createInput); errCreatingFargateProfile != nil {
 				r.Log.Error(errCreatingFargateProfile, "Failed to create fargate profile")
 				return ctrl.Result{}, errCreatingFargateProfile
 			}
-			r.Log.Info(fmt.Sprintf("%v: Successfully created profile", req.NamespacedName.String()))
+			return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 		}
 	}
 
