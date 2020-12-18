@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/agill17/eks-fargate-controller/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -57,10 +56,10 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		r.Log.Error(err, fmt.Sprintf("Failed to get CR from %v request", req.Namespace))
 		return ctrl.Result{}, err
 	}
-	eksClient := pkg.NewEksClient(cr.Spec.Region)
+	eksClient := NewEksClient(cr.Spec.Region)
 
 	// add finalizers
-	if errAddingFinalizer := pkg.AddFinalizer(pkg.FargateProfileFinalizer, cr, r.Client); errAddingFinalizer != nil {
+	if errAddingFinalizer := AddFinalizer(FargateProfileFinalizer, cr, r.Client); errAddingFinalizer != nil {
 		r.Log.Error(errAddingFinalizer, fmt.Sprintf("Failed to add finalizer to %s", req.NamespacedName.String()))
 		return ctrl.Result{}, errAddingFinalizer
 	}
@@ -74,11 +73,13 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		if _, errDeleting := eksClient.DeleteFargateProfile(deleteIn); errDeleting != nil {
 			if awsErr, ok := errDeleting.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
 				r.Log.Info(fmt.Sprintf("Tried deleting %v but does not exist.. skipping", req.NamespacedName.String()))
-				return ctrl.Result{}, nil
+				return ctrl.Result{}, RemoveFinalizer(FargateProfileFinalizer, cr, r.Client)
 			}
 			r.Log.Error(errDeleting, fmt.Sprintf("Could not delete %v fargate profile", req.NamespacedName.String()))
 			return ctrl.Result{}, errDeleting
 		}
+
+		return ctrl.Result{}, RemoveFinalizer(FargateProfileFinalizer, cr, r.Client)
 	}
 
 	// ensure specified eks cluster exists

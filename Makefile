@@ -1,6 +1,7 @@
-
+APP = eks-fargate-controller
+VERSION ?= 0.1.0
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= ${APP}:${VERSION}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -25,18 +26,6 @@ manager: generate fmt vet
 run: generate fmt vet manifests
 	go run ./main.go
 
-# Install CRDs into a cluster
-install: manifests
-	kustomize build config/crd | kubectl apply -f -
-
-# Uninstall CRDs from a cluster
-uninstall: manifests
-	kustomize build config/crd | kubectl delete -f -
-
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy: manifests
-	cd config/manager && kustomize edit set image controller=${IMG}
-	kustomize build config/default | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
@@ -57,10 +46,20 @@ generate: controller-gen
 # Build the docker image
 docker-build: generate fmt vet manifests
 	docker build . -t ${IMG}
+	rsync config/crd/bases/agill.apps.agill.apps.eks-fargate-controller_fargateprofiles.yaml eks-fargate-controller/crds
 
 # Push the docker image
 docker-push:
 	docker push ${IMG}
+
+install:
+	kubectl apply -f config/crd/bases/agill.apps.agill.apps.eks-fargate-controller_fargateprofiles.yaml
+	kubectl create ns ${APP} || true
+	helm upgrade ${APP} --install ${APP} -n ${APP}
+
+uninstall:
+	helm uninstall ${APP} -n ${APP}
+	kubectl delete ns ${APP}
 
 # find or download controller-gen
 # download controller-gen if necessary

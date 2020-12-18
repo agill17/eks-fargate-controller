@@ -1,4 +1,4 @@
-package pkg
+package controllers
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
