@@ -58,9 +58,17 @@ type FargateProfileSpec struct {
 	Tags map[string]string `json:"tags"`
 }
 
+type Phase string
+
+const (
+	Ready    Phase = "READY"
+	Creating Phase = "CREATING"
+	Deleting Phase = "Deleting"
+)
+
 // FargateProfileStatus defines the observed state of FargateProfile
 type FargateProfileStatus struct {
-	Phase string `json:"status"`
+	Phase Phase `json:"status"`
 }
 
 // +kubebuilder:object:root=true

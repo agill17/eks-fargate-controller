@@ -68,26 +68,12 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	// handle delete
 	if cr.GetDeletionTimestamp() != nil {
-
-		if errUpdatingPhase := UpdateFpCrStatus("DELETING", cr, r.Client); errUpdatingPhase != nil {
-			r.Log.Error(errUpdatingPhase, "Failed to update status.phase to DELETING")
-			return ctrl.Result{}, errUpdatingPhase
+		if errDeletingFprofile := deleteFprofile(cr, eksClient, r.Client); errDeletingFprofile != nil {
+			r.Log.Error(errDeletingFprofile, "Failed to delete fargate-profile")
+			return ctrl.Result{}, errDeletingFprofile
 		}
-
-		deleteIn := &eks.DeleteFargateProfileInput{
-			ClusterName:        aws.String(cr.Spec.ClusterName),
-			FargateProfileName: aws.String(cr.GetName()),
-		}
-		if _, errDeleting := eksClient.DeleteFargateProfile(deleteIn); errDeleting != nil {
-			if awsErr, ok := errDeleting.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
-				r.Log.Info(fmt.Sprintf("%v: attempted to delete, but fargate-profile does not exist.. skipping", req.NamespacedName.String()))
-				return ctrl.Result{}, RemoveFinalizer(FargateProfileFinalizer, cr, r.Client)
-			}
-			r.Log.Error(errDeleting, fmt.Sprintf("Could not delete %v fargate profile", req.NamespacedName.String()))
-			return ctrl.Result{}, errDeleting
-		}
-
-		return ctrl.Result{}, RemoveFinalizer(FargateProfileFinalizer, cr, r.Client)
+		r.Log.Info(fmt.Sprintf("%s: Successfully deleted fargate-profile", req.NamespacedName.String()))
+		return ctrl.Result{}, nil
 	}
 
 	// ensure specified eks cluster exists
@@ -108,65 +94,31 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 	}
 
-	// create fargate profile if not exists
+	// describe fProfile
 	fpState, errDescribingFp := eksClient.DescribeFargateProfile(&eks.DescribeFargateProfileInput{
 		ClusterName:        aws.String(cr.Spec.ClusterName),
 		FargateProfileName: aws.String(cr.GetName()),
 	})
 	if errDescribingFp != nil {
 		if awsErr, isAwsErr := errDescribingFp.(awserr.Error); isAwsErr && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
-
-			//TODO: add check to make sure subnets exists -- would require the creds to have permissions
-			//TODO: add check to make sure roleArn exists -- would require the creds to have permissions
-
-			createInput := &eks.CreateFargateProfileInput{
-				ClusterName:         aws.String(cr.Spec.ClusterName),
-				FargateProfileName:  aws.String(cr.GetName()),
-				PodExecutionRoleArn: aws.String(cr.Spec.PodExecutionRoleArn),
-				Subnets:             aws.StringSlice(cr.Spec.Subnets),
-				Tags:                aws.StringMap(cr.Spec.Tags),
+			if errCreatingFProfile := createFProfile(cr, eksClient, r.Client); errCreatingFProfile != nil {
+				r.Log.Error(errCreatingFProfile, "Failed to create fargate-profile")
+				return ctrl.Result{}, errCreatingFProfile
 			}
-
-			var selectors []*eks.FargateProfileSelector
-
-			if len(cr.Spec.PodSelectors) > 0 {
-				for key, val := range cr.Spec.PodSelectors {
-					selectors = append(selectors, &(eks.FargateProfileSelector{
-						Labels:    aws.StringMap(map[string]string{key: val}),
-						Namespace: aws.String(cr.GetNamespace()),
-					}))
-				}
-			}
-			createInput.SetSelectors(selectors)
-			r.Log.Info(fmt.Sprintf("%v: creating profile", req.NamespacedName.String()))
-
-			if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(createInput); errCreatingFargateProfile != nil {
-				r.Log.Error(errCreatingFargateProfile, "Failed to create fargate profile")
-				return ctrl.Result{}, errCreatingFargateProfile
-			}
-			if errUpdatingPhase := UpdateFpCrStatus("CREATING", cr, r.Client); errUpdatingPhase != nil {
-				r.Log.Error(errUpdatingPhase, "Failed to update status.phase to CREATING")
-				return ctrl.Result{}, errUpdatingPhase
-			}
-			// force requeue to get new state
-			return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
+			r.Log.Info(fmt.Sprintf("%s: Successfully initiated AWS to create fargate-profile", req.NamespacedName.String()))
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 		}
 		r.Log.Error(errDescribingFp, "Failed to describe fargate-profile")
 		return ctrl.Result{}, errDescribingFp
 	}
 
-	fpStatus := *fpState.FargateProfile.Status
-	if fpStatus != eks.FargateProfileStatusActive {
-		r.Log.Info(fmt.Sprintf("%v fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), fpStatus))
-		return ctrl.Result{RequeueAfter: 1 * time.Minute, Requeue: true}, nil
+	currentFpStatus := *fpState.FargateProfile.Status
+	if currentFpStatus != eks.FargateProfileStatusActive {
+		r.Log.Info(fmt.Sprintf("%s fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), currentFpStatus))
+		return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 	}
 
-	if errUpdatingPhase := UpdateFpCrStatus("READY", cr, r.Client); errUpdatingPhase != nil {
-		r.Log.Error(errUpdatingPhase, "Failed to update status.phase to READY")
-		return ctrl.Result{}, errUpdatingPhase
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Ready, r.Client, cr)
 }
 
 func (r *FargateProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {

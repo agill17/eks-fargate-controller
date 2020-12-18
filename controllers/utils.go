@@ -3,10 +3,24 @@ package controllers
 import (
 	"context"
 	"github.com/agill17/eks-fargate-controller/api/v1alpha1"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"math"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func NewEksClient(region string) eksiface.EKSAPI {
+	sess, _ := session.NewSession(&aws.Config{
+		CredentialsChainVerboseErrors: aws.Bool(true),
+		Region:                        aws.String(region),
+		MaxRetries:                    aws.Int(math.MaxInt64),
+	})
+	return eks.New(sess)
+}
 
 func AddFinalizer(finalizer string, runtimeObj runtime.Object, client client.Client) error {
 	metaObj, err := meta.Accessor(runtimeObj)
@@ -24,14 +38,6 @@ func AddFinalizer(finalizer string, runtimeObj runtime.Object, client client.Cli
 		currentFinalizers = append(currentFinalizers, finalizer)
 		metaObj.SetFinalizers(currentFinalizers)
 		return client.Update(context.TODO(), runtimeObj)
-	}
-	return nil
-}
-
-func UpdateFpCrStatus(status string, fp *v1alpha1.FargateProfile, client client.Client) error {
-	if fp.GetDeletionTimestamp() != nil && fp.Status.Phase != status {
-		fp.Status.Phase = status
-		return client.Status().Update(context.TODO(), fp)
 	}
 	return nil
 }
@@ -58,4 +64,19 @@ func ListContainsString(lookup string, list []string) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+func updateCrPhase(phase v1alpha1.Phase, client client.Client, fp *v1alpha1.FargateProfile) error {
+
+	// do not try to update if fp has a deletion timestamp
+	if fp.GetDeletionTimestamp() != nil {
+		return nil
+	}
+
+	if fp.Status.Phase != phase {
+		fp.Status.Phase = phase
+		return client.Status().Update(context.TODO(), fp)
+	}
+
+	return nil
 }
