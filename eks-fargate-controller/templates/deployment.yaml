@@ -38,7 +38,7 @@ spec:
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
           env:
-          {{- toYaml .Values.envVars | nindent 10 }}
+          {{- toYaml .Values.envVars | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
