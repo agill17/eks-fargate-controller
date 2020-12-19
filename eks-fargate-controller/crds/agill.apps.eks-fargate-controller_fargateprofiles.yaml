@@ -17,11 +17,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .metadata.namespace
-      name: namespace
-      type: string
-    - jsonPath: .spec.podSelectors
-      name: pod-selectors
+    - jsonPath: .spec.selectors
+      name: selectors
       type: string
     - jsonPath: .status.phase
       name: phase
@@ -91,10 +88,10 @@ spec:
           status:
             description: FargateProfileStatus defines the observed state of FargateProfile
             properties:
-              status:
+              phase:
                 type: string
             required:
-            - status
+            - phase
             type: object
         type: object
     served: true

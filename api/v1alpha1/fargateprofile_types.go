@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -75,15 +77,14 @@ type FargateProfileSpec struct {
 
 // FargateProfileStatus defines the observed state of FargateProfile
 type FargateProfileStatus struct {
-	Phase Phase `json:"status"`
+	Phase Phase `json:"phase"`
 }
 
 // +kubebuilder:object:root=true
 
 // FargateProfile is the Schema for the fargateprofiles API
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="namespace",type=string,JSONPath=`.metadata.namespace`
-// +kubebuilder:printcolumn:name="pod-selectors",type=string,JSONPath=`.spec.podSelectors`
+// +kubebuilder:printcolumn:name="selectors",type=string,JSONPath=`.spec.selectors`
 // +kubebuilder:printcolumn:name="phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type FargateProfile struct {
@@ -105,4 +106,36 @@ type FargateProfileList struct {
 
 func init() {
 	SchemeBuilder.Register(&FargateProfile{}, &FargateProfileList{})
+}
+
+func (in *FargateProfile) WithCreateIn() *eks.CreateFargateProfileInput {
+
+	selectorsFn := func() []*eks.FargateProfileSelector {
+		var s []*eks.FargateProfileSelector
+		for _, inS := range in.Spec.Selectors {
+			s = append(s, &eks.FargateProfileSelector{
+				Labels:    aws.StringMap(inS.Labels),
+				Namespace: aws.String(inS.Namespace),
+			})
+		}
+		return s
+	}
+
+	out := &eks.CreateFargateProfileInput{
+		ClusterName:         aws.String(in.Spec.ClusterName),
+		FargateProfileName:  aws.String(in.GetName()),
+		PodExecutionRoleArn: aws.String(in.Spec.PodExecutionRoleArn),
+		Selectors:           selectorsFn(),
+		Subnets:             aws.StringSlice(in.Spec.Subnets),
+		Tags:                aws.StringMap(in.Spec.Tags),
+	}
+
+	return out
+}
+
+func (in *FargateProfile) WithDeleteIn() *eks.DeleteFargateProfileInput {
+	return &eks.DeleteFargateProfileInput{
+		ClusterName:        aws.String(in.Spec.ClusterName),
+		FargateProfileName: aws.String(in.GetName()),
+	}
 }
