@@ -68,9 +68,17 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	// handle delete
 	if cr.GetDeletionTimestamp() != nil {
-		if errDeletingFprofile := deleteFprofile(cr, eksClient, r.Client); errDeletingFprofile != nil {
+
+		if errMarkingFpDeleting := updateCrPhase(agillappsv1alpha1.Deleting, r.Client, cr); errMarkingFpDeleting != nil {
+			return ctrl.Result{}, errMarkingFpDeleting
+		}
+
+		if errDeletingFprofile := deleteFprofile(cr.WithDeleteIn(), eksClient); errDeletingFprofile != nil {
 			r.Log.Error(errDeletingFprofile, "Failed to delete fargate-profile")
 			return ctrl.Result{}, errDeletingFprofile
+		}
+		if errRemovingFinalizer := RemoveFinalizer(FargateProfileFinalizer, cr, r.Client); errRemovingFinalizer != nil {
+			return ctrl.Result{}, errRemovingFinalizer
 		}
 		r.Log.Info(fmt.Sprintf("%s: Successfully deleted fargate-profile", req.NamespacedName.String()))
 		return ctrl.Result{}, nil
@@ -100,14 +108,19 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		FargateProfileName: aws.String(cr.GetName()),
 	})
 	if errDescribingFp != nil {
-		if awsErr, isAwsErr := errDescribingFp.(awserr.Error); isAwsErr && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
-			if errCreatingFProfile := createFProfile(cr, eksClient, r.Client); errCreatingFProfile != nil {
-				r.Log.Error(errCreatingFProfile, "Failed to create fargate-profile")
-				return ctrl.Result{}, errCreatingFProfile
+
+		if awsErr, isAwsErr := errDescribingFp.(awserr.Error); isAwsErr {
+			// not found, create it
+			if awsErr.Code() == eks.ErrCodeResourceNotFoundException {
+				if errCreatingFProfile := createFProfile(cr.WithCreateIn(), eksClient); errCreatingFProfile != nil {
+					r.Log.Error(errCreatingFProfile, "Failed to create fargate-profile")
+					return ctrl.Result{}, errCreatingFProfile
+				}
+				r.Log.Info(fmt.Sprintf("%s: Successfully initiated AWS to create fargate-profile", req.NamespacedName.String()))
+				return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, updateCrPhase(agillappsv1alpha1.Creating, r.Client, cr)
 			}
-			r.Log.Info(fmt.Sprintf("%s: Successfully initiated AWS to create fargate-profile", req.NamespacedName.String()))
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 		}
+		// not-recognized error, requeue
 		r.Log.Error(errDescribingFp, "Failed to describe fargate-profile")
 		return ctrl.Result{}, errDescribingFp
 	}

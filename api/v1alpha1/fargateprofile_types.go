@@ -17,11 +17,26 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type Phase string
+
+const (
+	Ready    Phase = "READY"
+	Creating Phase = "CREATING"
+	Deleting Phase = "Deleting"
+)
+
+type FargateProfileSelector struct {
+	// The Kubernetes labels that the selector should match. A pod must contain
+	// all of the labels that are specified in the selector for it to be considered
+	// a match.
+	Labels    map[string]string `json:"labels"`
+	Namespace string            `json:"namespace,required"`
+}
 
 // FargateProfileSpec defines the desired state of FargateProfile
 type FargateProfileSpec struct {
@@ -40,8 +55,10 @@ type FargateProfileSpec struct {
 	// PodExecutionRoleArn is a required field
 	PodExecutionRoleArn string `json:"podExecutionRoleArn,required"`
 
-	// +optional
-	PodSelectors map[string]string `json:"podSelectors"`
+	// An object representing an AWS Fargate profile selector ( can include 5 at max ).
+	// +kubebuilder:validation:MaxItems=5
+	// +kubebuilder:validation:MinItems=1
+	Selectors []FargateProfileSelector `json:"selectors"`
 
 	// The IDs of subnets to launch your pods into. At this time, pods running on
 	// Fargate are not assigned public IP addresses, so only private subnets (with
@@ -58,25 +75,16 @@ type FargateProfileSpec struct {
 	Tags map[string]string `json:"tags"`
 }
 
-type Phase string
-
-const (
-	Ready    Phase = "READY"
-	Creating Phase = "CREATING"
-	Deleting Phase = "Deleting"
-)
-
 // FargateProfileStatus defines the observed state of FargateProfile
 type FargateProfileStatus struct {
-	Phase Phase `json:"status"`
+	Phase Phase `json:"phase"`
 }
 
 // +kubebuilder:object:root=true
 
 // FargateProfile is the Schema for the fargateprofiles API
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="namespace",type=string,JSONPath=`.metadata.namespace`
-// +kubebuilder:printcolumn:name="pod-selectors",type=string,JSONPath=`.spec.podSelectors`
+// +kubebuilder:printcolumn:name="selectors",type=string,JSONPath=`.spec.selectors`
 // +kubebuilder:printcolumn:name="phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type FargateProfile struct {
@@ -98,4 +106,36 @@ type FargateProfileList struct {
 
 func init() {
 	SchemeBuilder.Register(&FargateProfile{}, &FargateProfileList{})
+}
+
+func (in *FargateProfile) WithCreateIn() *eks.CreateFargateProfileInput {
+
+	selectorsFn := func() []*eks.FargateProfileSelector {
+		var s []*eks.FargateProfileSelector
+		for _, inS := range in.Spec.Selectors {
+			s = append(s, &eks.FargateProfileSelector{
+				Labels:    aws.StringMap(inS.Labels),
+				Namespace: aws.String(inS.Namespace),
+			})
+		}
+		return s
+	}
+
+	out := &eks.CreateFargateProfileInput{
+		ClusterName:         aws.String(in.Spec.ClusterName),
+		FargateProfileName:  aws.String(in.GetName()),
+		PodExecutionRoleArn: aws.String(in.Spec.PodExecutionRoleArn),
+		Selectors:           selectorsFn(),
+		Subnets:             aws.StringSlice(in.Spec.Subnets),
+		Tags:                aws.StringMap(in.Spec.Tags),
+	}
+
+	return out
+}
+
+func (in *FargateProfile) WithDeleteIn() *eks.DeleteFargateProfileInput {
+	return &eks.DeleteFargateProfileInput{
+		ClusterName:        aws.String(in.Spec.ClusterName),
+		FargateProfileName: aws.String(in.GetName()),
+	}
 }
