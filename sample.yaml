@@ -1,0 +1,21 @@
+apiVersion: agill.apps.eks-fargate-controller/v1alpha1
+kind: FargateProfile
+metadata:
+  name: fargateprofile-sample
+  namespace: default
+spec:
+  region: us-east-1
+  clusterName: amritgill-tk
+  podExecutionRoleArn: arn:aws:iam:::role/eks-clusterService-role
+  subnets:
+  - priavate-subnet-id
+  - private-subnet-id
+  selectors:
+  - namespace: default
+    labels:
+      tier: ci
+  - namespace: fp
+    labels:
+      tier: fp
+  tags:
+    created-by: eks-fargate-controller
