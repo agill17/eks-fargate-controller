@@ -59,6 +59,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, err
 	}
 	eksClient := NewEksClient(cr.Spec.Region)
+	ec2Client := NewEc2Client(cr.Spec.Region)
 
 	// add finalizers
 	if errAddingFinalizer := AddFinalizer(FargateProfileFinalizer, cr, r.Client); errAddingFinalizer != nil {
@@ -84,22 +85,30 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, nil
 	}
 
-	// ensure specified eks cluster exists
-	eksClusterState, errDescribingCluster := eksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(cr.Spec.ClusterName)})
-	if errDescribingCluster != nil {
-		if awsErr, ok := errDescribingCluster.(awserr.Error); ok && awsErr.Code() == eks.ErrCodeResourceNotFoundException {
-			r.Log.Error(awsErr, fmt.Sprintf("%v eks cluster not found in %v region", cr.Spec.ClusterName, cr.Spec.Region))
-			// delayed retry
-			return ctrl.Result{RequeueAfter: 2 * time.Minute}, awsErr
-		}
-		r.Log.Error(errDescribingCluster, "Could not query the state of EKS cluster")
-		return ctrl.Result{}, errDescribingCluster
-	}
+	// run some checks before attempting to create anything
+	err := runPreFlightChecks(eksClient, ec2Client, cr)
+	if err != nil {
+		switch e := err.(type) {
 
-	// eks cluster is in available state -- TODO: is this necessary or can I narrow down this check more?
-	if *eksClusterState.Cluster.Status != eks.ClusterStatusActive {
-		r.Log.Info(fmt.Sprintf("%v eks cluster is in %v state, waiting to become active first", cr.Spec.ClusterName, *eksClusterState.Cluster.Status))
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, nil
+		case ErrInvalidSubnet:
+			r.Log.Error(e, fmt.Sprintf("%v: has invalid subnets - %v. "+
+				"Please update spec with correct subnets", req.NamespacedName, e.Message))
+			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
+
+		case ErrEksClusterNotFound:
+			r.Log.Error(e, fmt.Sprintf("%v: %v eks cluster "+
+				"does not exist", req.NamespacedName, cr.Spec.ClusterName))
+			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
+
+		case ErrEksClusterNotActive:
+			r.Log.Info(fmt.Sprintf("%v: %v eks cluster is not in active state."+
+				" Will check back in few mins", req.NamespacedName, cr.Spec.ClusterName))
+			return ctrl.Result{RequeueAfter: 2 * time.Minute}, nil
+
+		default:
+			r.Log.Error(e, "Something went wrong while running pre-flight checks")
+			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
+		}
 	}
 
 	// describe fProfile
@@ -116,7 +125,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 					r.Log.Error(errCreatingFProfile, "Failed to create fargate-profile")
 					return ctrl.Result{}, errCreatingFProfile
 				}
-				r.Log.Info(fmt.Sprintf("%s: Successfully initiated AWS to create fargate-profile", req.NamespacedName.String()))
+				r.Log.Info(fmt.Sprintf("%s: Creating fargate-profile", req.NamespacedName.String()))
 				return ctrl.Result{Requeue: true, RequeueAfter: time.Minute}, updateCrPhase(agillappsv1alpha1.Creating, r.Client, cr)
 			}
 		}
@@ -130,7 +139,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		r.Log.Info(fmt.Sprintf("%s fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), currentFpStatus))
 		return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 	}
-
+	r.Log.Info(fmt.Sprintf("%v fargate-profile is %v", req.NamespacedName, currentFpStatus))
 	return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Ready, r.Client, cr)
 }
 

@@ -1,5 +1,5 @@
 APP = eks-fargate-controller
-VERSION ?= 0.1.0
+VERSION ?= 0.3.0
 # Image URL to use all building/pushing image targets
 IMG ?= agill17/${APP}:${VERSION}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
@@ -47,6 +47,7 @@ generate: controller-gen
 docker-build: generate fmt vet manifests
 	docker build . -t ${IMG}
 	rsync config/crd/bases/agill.apps.eks-fargate-controller_fargateprofiles.yaml eks-fargate-controller/crds
+	yq w -i ${APP}/Chart.yaml appVersion ${VERSION}
 
 # Push the docker image
 docker-push:

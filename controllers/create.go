@@ -7,9 +7,6 @@ import (
 
 func createFProfile(input *eks.CreateFargateProfileInput, eksClient eksiface.EKSAPI) error {
 
-	//TODO: add check to make sure subnets exists -- would require the creds to have permissions
-	//TODO: add check to make sure roleArn exists -- would require the creds to have permissions
-
 	if _, errCreatingFargateProfile := eksClient.CreateFargateProfile(input); errCreatingFargateProfile != nil {
 		return errCreatingFargateProfile
 	}

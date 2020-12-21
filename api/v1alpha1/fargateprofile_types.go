@@ -28,6 +28,7 @@ const (
 	Ready    Phase = "READY"
 	Creating Phase = "CREATING"
 	Deleting Phase = "Deleting"
+	Failed   Phase = "Failed"
 )
 
 type FargateProfileSelector struct {
