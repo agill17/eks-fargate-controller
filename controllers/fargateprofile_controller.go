@@ -136,10 +136,10 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	currentFpStatus := *fpState.FargateProfile.Status
 	if currentFpStatus != eks.FargateProfileStatusActive {
-		r.Log.Info(fmt.Sprintf("%s fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), currentFpStatus))
+		r.Log.Info(fmt.Sprintf("%s: fargate-profile is not active yet. Current status: %v", req.NamespacedName.String(), currentFpStatus))
 		return ctrl.Result{RequeueAfter: time.Minute, Requeue: true}, nil
 	}
-	r.Log.Info(fmt.Sprintf("%v fargate-profile is %v", req.NamespacedName, currentFpStatus))
+	r.Log.Info(fmt.Sprintf("%v: fargate-profile is %v", req.NamespacedName, currentFpStatus))
 	return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Ready, r.Client, cr)
 }
 
