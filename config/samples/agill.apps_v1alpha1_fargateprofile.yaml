@@ -6,7 +6,7 @@ metadata:
 spec:
   region: us-east-1
   clusterName: amritgill-tk
-  podExecutionRoleArn: arn:aws:iam::216097885821:role/eksctl-amritgill-tk-cluster-ServiceRole-1F8ATCYCB6TH7
+  podExecutionRoleArn: arn:aws:iam:::role/eksctl-amritgill-tk-cluster-ServiceRole
   subnets:
   - subnet-040467f04a10a796a
   - subnet-000cf628a69c107d1
