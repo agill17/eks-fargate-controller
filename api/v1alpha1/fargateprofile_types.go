@@ -25,10 +25,11 @@ import (
 type Phase string
 
 const (
-	Ready    Phase = "READY"
-	Creating Phase = "CREATING"
-	Deleting Phase = "Deleting"
-	Failed   Phase = "Failed"
+	Ready             Phase = "Ready"
+	Creating          Phase = "Creating"
+	Deleting          Phase = "Deleting"
+	Failed            Phase = "Failed"
+	PendingEvaluation Phase = "Pending-Evaluation"
 )
 
 type FargateProfileSelector struct {

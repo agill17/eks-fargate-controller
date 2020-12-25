@@ -23,3 +23,11 @@ type ErrInvalidSubnet struct {
 func (e ErrInvalidSubnet) Error() string {
 	return e.Message
 }
+
+type ErrPodExecutionRoleArnNotFound struct {
+	Message string
+}
+
+func (e ErrPodExecutionRoleArnNotFound) Error() string {
+	return e.Message
+}
