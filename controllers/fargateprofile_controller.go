@@ -60,6 +60,7 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 	eksClient := NewEksClient(cr.Spec.Region)
 	ec2Client := NewEc2Client(cr.Spec.Region)
+	iamClient := NewIamClient(cr.Spec.Region)
 
 	// add finalizers
 	if errAddingFinalizer := AddFinalizer(FargateProfileFinalizer, cr, r.Client); errAddingFinalizer != nil {
@@ -86,14 +87,8 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	// run some checks before attempting to create anything
-	err := runPreFlightChecks(eksClient, ec2Client, cr)
-	if err != nil {
-		switch e := err.(type) {
-
-		case ErrInvalidSubnet:
-			r.Log.Error(e, fmt.Sprintf("%v: has invalid subnets - %v. "+
-				"Please update spec with correct subnets", req.NamespacedName, e.Message))
-			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
+	if errCheckingPreReqs := runPreFlightChecks(eksClient, ec2Client, iamClient, cr); errCheckingPreReqs != nil {
+		switch e := errCheckingPreReqs.(type) {
 
 		case ErrEksClusterNotFound:
 			r.Log.Error(e, fmt.Sprintf("%v: %v eks cluster "+
@@ -104,6 +99,16 @@ func (r *FargateProfileReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			r.Log.Info(fmt.Sprintf("%v: %v eks cluster is not in active state."+
 				" Will check back in few mins", req.NamespacedName, cr.Spec.ClusterName))
 			return ctrl.Result{RequeueAfter: 2 * time.Minute}, nil
+
+		case ErrPodExecutionRoleArnNotFound:
+			r.Log.Info(fmt.Sprintf("%v: %v pod execution role arn does not exist."+
+				"Please update spec with correct podExecutionRoleArn", req.NamespacedName, cr.Spec.PodExecutionRoleArn))
+			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
+
+		case ErrInvalidSubnet:
+			r.Log.Error(e, fmt.Sprintf("%v: has invalid subnets - %v. "+
+				"Please update spec with correct subnets", req.NamespacedName, e.Message))
+			return ctrl.Result{}, updateCrPhase(agillappsv1alpha1.Failed, r.Client, cr)
 
 		default:
 			r.Log.Error(e, "Something went wrong while running pre-flight checks")
@@ -147,6 +152,8 @@ func (r *FargateProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&agillappsv1alpha1.FargateProfile{}).
 		WithEventFilter(predicate.Funcs{
+
+			// must return true to let this event reconcile
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				return e.MetaOld.GetGeneration() != e.MetaNew.GetGeneration()
 			},

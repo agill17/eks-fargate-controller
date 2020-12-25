@@ -1,5 +1,5 @@
 APP = eks-fargate-controller
-VERSION ?= 0.3.0
+VERSION ?= 0.4.0
 # Image URL to use all building/pushing image targets
 IMG ?= agill17/${APP}:${VERSION}
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
