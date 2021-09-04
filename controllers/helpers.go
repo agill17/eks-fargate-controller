@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"strings"
 )
 
@@ -62,6 +64,21 @@ func subnetCheck(subnetsToCheck []string, vpcID string, ec2Client ec2iface.EC2AP
 		}
 	}
 	return nil
+}
+
+func iamRoleExists(roleName string, iamapi iamiface.IAMAPI) (*iam.GetRoleOutput, bool, error) {
+	out, err := iamapi.GetRole(&iam.GetRoleInput{RoleName: aws.String(roleName)})
+	if err != nil {
+		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr {
+			if awsErr.Code() == iam.ErrCodeNoSuchEntityException {
+				return nil, false, nil
+			}
+		}
+		// non-recognized error
+		return nil, false, err
+	}
+	return out, true, nil
+
 }
 
 func routeTablesToSubnetIDMap(rts []*ec2.RouteTable) map[string][]*ec2.Route {
